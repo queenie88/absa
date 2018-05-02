@@ -69,6 +69,15 @@ def get_acc(logit, labels):
     return acc
 
 
+def masked_softmax(A, mask):
+    # matrix A is the one you want to do mask softmax at dim=1
+    A_max = torch.max(A, dim=1, keepdim=True)[0]
+    A_exp = torch.exp(A - A_max)
+    A_exp = A_exp * mask  # this step masks
+    A_softmax = A_exp / (torch.sum(A_exp, dim=1, keepdim=True) + 1e-10)
+    return A_softmax
+
+
 if __name__ == '__main__':
     logit = torch.randn(5, 3)
     labels = torch.from_numpy(np.array([0, 0, 0, 0, 0])).long()

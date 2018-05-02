@@ -29,8 +29,8 @@ class ABSA_Lstm(nn.Module):
     def init_param(self):
         self.lstmcell = LstmCell(input_size=self.dim_word, hidden_size=self.dim_hidden)
         self.linear = FullConnect(self.dim_hidden, self.num_classification)
-        self.h, self.c = torch.zeros([self.batch, self.dim_hidden]), \
-                         torch.zeros([self.batch, self.dim_hidden])
+        self.h, self.c = nn.Parameter(torch.zeros([self.batch, self.dim_hidden])), \
+                         nn.Parameter(torch.zeros([self.batch, self.dim_hidden]))
 
     def init_emb(self, embedding):
         num_word, dim_word = embedding.shape

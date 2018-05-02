@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from datasets import read_data, load_embedding, load_worddict, load_wordvec
-from models import ABSA_Lstm
+from models import ABSA_Lstm, ABSA_Atae_Lstm
 from models.basic import get_acc
 import argparse
 import sys
@@ -13,7 +13,7 @@ from tensorboardX import SummaryWriter
 if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='lstm')
+    parser.add_argument('--model', type=str, default='atae_lstm')
     parser.add_argument('--seed', type=int, default=int(1000 * time.time()))
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=300)
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch', type=int, default=25)
     args, _ = parser.parse_known_args(argv)
     dataset_dic = {'restaurant': ['./data/restaurant/train.txt', './data/restaurant/test.txt']}
-    model_dic = {'lstm': ABSA_Lstm}
+    model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm}
 
     # random seed
     if torch.cuda.is_available():
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     cross_entropy = nn.CrossEntropyLoss()
     # train
     # summary writer
-    writer = SummaryWriter('logs/{}/{}'.format(args.dataset, args.model))
+    writer = SummaryWriter('logs/%s/%s/%s' % (args.dataset, args.model, str(int(time.time()))))
     num_train = len(train_data)
     num_test = len(test_data)
     optim = torch.optim.Adagrad(model.parameters(), lr=args.lr)
