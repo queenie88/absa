@@ -6,7 +6,7 @@ from math import sqrt
 
 
 class ABSA_Atae_Lstm(nn.Module):
-    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb):
+    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb, device):
         super(ABSA_Atae_Lstm, self).__init__()
         self.dim_word = dim_word
         self.dim_hidden = dim_hidden
@@ -16,12 +16,14 @@ class ABSA_Atae_Lstm(nn.Module):
         self.init_param()
         self.emb_matrix = self.init_emb(wordemb)
         self.target_matrix = self.init_emb(targetemb)
+        self.device = device
 
     def forward(self, sent, target, lens):
         x = self.emb_matrix(sent).view(sent.shape[0], sent.shape[1], -1)
         target_x = self.target_matrix(target).view(target.shape[0], -1)
         h, c = self.h0, self.c0
-        mask = get_mask(self.maxlen, lens)
+        mask = get_mask(self.maxlen, lens.cpu())
+        mask = mask.to(self.device)
         h_list = []
         for t in range(self.maxlen):
             input = torch.cat([x[:, t, :], target_x], dim=-1)
@@ -40,6 +42,7 @@ class ABSA_Atae_Lstm(nn.Module):
         alpha_tmp = masked_softmax(torch.matmul(M_tmp, self.w), mask)
         r = torch.bmm(alpha_tmp[:, None, :], H).squeeze()
         h = torch.tanh(torch.matmul(r, self.Wp) + torch.matmul(H[-1], self.Wx))
+        h = self.drop(h)
         logit = self.linear(h)
         return logit
 
@@ -59,6 +62,7 @@ class ABSA_Atae_Lstm(nn.Module):
         nn.init.uniform_(self.w, -u, u)
         nn.init.uniform_(self.Wp, -u, u)
         nn.init.uniform_(self.Wx, -u, u)
+        self.drop = nn.Dropout(0.5)
 
     def init_emb(self, embedding):
         num_word, dim_word = embedding.shape

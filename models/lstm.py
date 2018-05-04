@@ -4,7 +4,7 @@ from models.basic import LstmCell, FullConnect, get_mask
 
 
 class ABSA_Lstm(nn.Module):
-    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb):
+    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb, device):
         super(ABSA_Lstm, self).__init__()
         self.dim_word = dim_word
         self.dim_hidden = dim_hidden
@@ -13,11 +13,13 @@ class ABSA_Lstm(nn.Module):
         self.maxlen = maxlen
         self.init_param()
         self.emb_matrix = self.init_emb(wordemb)
+        self.device = device
 
     def forward(self, sent, target, lens):
         x = self.emb_matrix(sent).view(sent.shape[0], sent.shape[1], -1)
         h, c = self.h, self.c
-        mask = get_mask(self.maxlen, lens)
+        mask = get_mask(self.maxlen, lens.cpu())
+        mask = mask.to(self.device)
         for t in range(self.maxlen):
             _h, _c = self.lstmcell(x[:, t, :], h, c)
             m = mask[:, t]

@@ -13,22 +13,26 @@ from tensorboardX import SummaryWriter
 if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='atae_lstm')
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--model', type=str, default='lstm')
     parser.add_argument('--seed', type=int, default=int(1000 * time.time()))
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=300)
     parser.add_argument('--num_class', type=int, default=3)
     parser.add_argument('--maxlen', type=int, default=25)
-    parser.add_argument('--dataset', type=str, default='restaurant')
+    parser.add_argument('--dataset', type=str, default='restaurant_cat')
     parser.add_argument('--glove_file', type=str, default='./data/glove.840B.300d.txt')
     parser.add_argument('--optimizer', type=str, default='adagrad')
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--max_epoch', type=int, default=25)
+    parser.add_argument('--max_epoch', type=int, default=10)
     parser.add_argument('--batch', type=int, default=25)
     args, _ = parser.parse_known_args(argv)
-    dataset_dic = {'restaurant': ['./data/restaurant/train.txt', './data/restaurant/test.txt']}
+    dataset_dic = {'restaurant_cat': ['./data/restaurant/train_cat.txt', './data/restaurant/test_cat.txt'],
+                   'restaurant': ['./data/restaurant/train.txt', './data/restaurant/test.txt'],
+                   'laptop': ['./data/laptop/train.txt', './data/laptop/test.txt']}
     model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm}
 
+    device = torch.device(args.device)
     # random seed
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
@@ -45,7 +49,8 @@ if __name__ == '__main__':
     # init model
     Model = model_dic[args.model]
     model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, num_classification=args.num_class,
-                  maxlen=args.maxlen, batch=args.batch, wordemb=wordemb, targetemb=targetemb)
+                  maxlen=args.maxlen, batch=args.batch, wordemb=wordemb, targetemb=targetemb, device=device)
+    model.to(device)
     # init loss
     cross_entropy = nn.CrossEntropyLoss()
     # train
@@ -65,11 +70,13 @@ if __name__ == '__main__':
             batch_data = train_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
             sent, target, rating, lens = np.array(sent), np.array(target), np.array(rating), np.array(lens)
-            sent, target, rating, lens = torch.from_numpy(sent).long(), torch.from_numpy(target).long(), \
-                                         torch.from_numpy(rating).long(), torch.from_numpy(lens).long()
+            sent, target, rating, lens = torch.from_numpy(sent).long().to(device), \
+                                         torch.from_numpy(target).long().to(device), \
+                                         torch.from_numpy(rating).long().to(device), \
+                                         torch.from_numpy(lens).long().to(device)
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
-            losses.append(loss.data.numpy())
+            losses.append(loss.cpu().data.numpy())
             loss.backward()
             optim.step()
         loss = sum(losses) / len(losses)
@@ -83,8 +90,10 @@ if __name__ == '__main__':
             batch_data = train_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
             sent, target, rating, lens = np.array(sent), np.array(target), np.array(rating), np.array(lens)
-            sent, target, rating, lens = torch.from_numpy(sent).long(), torch.from_numpy(target).long(), \
-                                         torch.from_numpy(rating).long(), torch.from_numpy(lens).long()
+            sent, target, rating, lens = torch.from_numpy(sent).long().to(device), \
+                                         torch.from_numpy(target).long().to(device), \
+                                         torch.from_numpy(rating).long().to(device), \
+                                         torch.from_numpy(lens).long()
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)
@@ -101,8 +110,10 @@ if __name__ == '__main__':
             batch_data = test_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
             sent, target, rating, lens = np.array(sent), np.array(target), np.array(rating), np.array(lens)
-            sent, target, rating, lens = torch.from_numpy(sent).long(), torch.from_numpy(target).long(), \
-                                         torch.from_numpy(rating).long(), torch.from_numpy(lens).long()
+            sent, target, rating, lens = torch.from_numpy(sent).long().to(device), \
+                                         torch.from_numpy(target).long().to(device), \
+                                         torch.from_numpy(rating).long().to(device), \
+                                         torch.from_numpy(lens).long()
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)

@@ -56,6 +56,7 @@ class LstmCell(nn.Module):
 
 
 def get_mask(maxlen, lens):
+    # lens, cpu tensor
     batch = lens.shape[0]
     index = np.arange(maxlen).repeat(batch).reshape(maxlen, batch).transpose([1, 0])
     mask = index < lens[:, None].numpy()
