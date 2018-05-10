@@ -5,9 +5,9 @@ from models.basic import LstmCell, FullConnect, get_mask, masked_softmax
 from math import sqrt
 
 
-class ABSA_Atae_Lstm(nn.Module):
+class Model(nn.Module):
     def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb, device):
-        super(ABSA_Atae_Lstm, self).__init__()
+        super(Model, self).__init__()
         self.dim_word = dim_word
         self.dim_hidden = dim_hidden
         self.num_classification = num_classification
@@ -22,7 +22,8 @@ class ABSA_Atae_Lstm(nn.Module):
         x = self.emb_matrix(sent).view(sent.shape[0], sent.shape[1], -1)
         target_x = self.target_matrix(target).view(target.shape[0], -1)
         h, c = self.h0, self.c0
-        mask = get_mask(self.maxlen, lens)
+        mask = get_mask(self.maxlen, lens.cpu())
+        mask = mask.to(self.device)
         h_list = []
         for t in range(self.maxlen):
             input = torch.cat([x[:, t, :], target_x], dim=-1)
@@ -35,10 +36,13 @@ class ABSA_Atae_Lstm(nn.Module):
 
         # attention
         matrix_aspect = torch.zeros_like(H).float() + target_x
-        hhhh = torch.cat([torch.matmul(H, self.Wh), torch.matmul(matrix_aspect, self.Wv)], dim=-1)
-        M_tmp = torch.tanh(hhhh)
+        # hhhh = torch.cat([torch.matmul(H, self.Wh), torch.matmul(matrix_aspect, self.Wv)], dim=-1)
+        # M_tmp = torch.tanh(hhhh)
         # alpha_tmp = F.softmax(torch.matmul(M_tmp, self.w), dim=1)
-        alpha_tmp = masked_softmax(torch.matmul(M_tmp, self.w), mask)
+        # alpha_tmp = masked_softmax(torch.matmul(alpha_tmp, self.w), mask)
+        alpha_tmp = F.cosine_similarity(torch.matmul(H, self.Wh), torch.matmul(matrix_aspect, self.Wv), dim=-1)
+        alpha_tmp = masked_softmax(alpha_tmp, mask)
+
         r = torch.bmm(alpha_tmp[:, None, :], H).squeeze()
         h = torch.tanh(torch.matmul(r, self.Wp) + torch.matmul(H[-1], self.Wx))
         h = self.drop(h)

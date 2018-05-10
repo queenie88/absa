@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from datasets import read_data, load_embedding, load_worddict, load_wordvec
-from models import ABSA_Lstm, ABSA_Atae_Lstm
+from models import ABSA_Lstm, ABSA_Atae_Lstm, Model
 from models.basic import get_acc
 import argparse
 import sys
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--model', type=str, default='lstm')
+    parser.add_argument('--model', type=str, default='atae_lstm')
     parser.add_argument('--seed', type=int, default=int(1000 * time.time()))
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=300)
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     dataset_dic = {'restaurant_cat': ['./data/restaurant/train_cat.txt', './data/restaurant/test_cat.txt'],
                    'restaurant': ['./data/restaurant/train.txt', './data/restaurant/test.txt'],
                    'laptop': ['./data/laptop/train.txt', './data/laptop/test.txt']}
-    model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm}
+    model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm, 'model': Model}
 
     device = torch.device(args.device)
     # random seed
@@ -76,7 +76,7 @@ if __name__ == '__main__':
                                          torch.from_numpy(lens).long().to(device)
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
-            losses.append(loss.cpu().data.numpy())
+            losses.append(loss)
             loss.backward()
             optim.step()
         loss = sum(losses) / len(losses)
@@ -93,7 +93,7 @@ if __name__ == '__main__':
             sent, target, rating, lens = torch.from_numpy(sent).long().to(device), \
                                          torch.from_numpy(target).long().to(device), \
                                          torch.from_numpy(rating).long().to(device), \
-                                         torch.from_numpy(lens).long()
+                                         torch.from_numpy(lens).long().to(device)
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
             sent, target, rating, lens = torch.from_numpy(sent).long().to(device), \
                                          torch.from_numpy(target).long().to(device), \
                                          torch.from_numpy(rating).long().to(device), \
-                                         torch.from_numpy(lens).long()
+                                         torch.from_numpy(lens).long().to(device)
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)

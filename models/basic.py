@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from math import sqrt
 import numpy as np
 
@@ -30,6 +31,7 @@ class LstmCell(nn.Module):
         i, f, o, c = torch.matmul(input, self.Wi) + self.Bi, torch.matmul(input, self.Wf) + self.Bf, \
                      torch.matmul(input, self.Wo) + self.Bo, torch.matmul(input, self.Wc) + self.Bc
         i, f, o, c = torch.sigmoid(i), torch.sigmoid(f), torch.sigmoid(o), torch.tanh(c)
+        o = F.threshold(o, threshold=0.4, value=0)
         c = f * c_fore + i * c
         h = o * torch.tanh(c)
         return h, c
@@ -56,12 +58,13 @@ class LstmCell(nn.Module):
 
 
 def get_mask(maxlen, lens):
-    # lens, cpu tensor
+    device = lens.device
     batch = lens.shape[0]
-    index = np.arange(maxlen).repeat(batch).reshape(maxlen, batch).transpose([1, 0])
-    mask = index < lens[:, None].numpy()
-    mask = mask.astype(np.float)
-    return torch.from_numpy(mask).float()
+    idx = torch.range(0, maxlen - 1, 1).to(device)
+    idx = torch.stack([idx] * batch)
+    mask = idx < lens[:, None].float()
+    mask = mask.float()
+    return mask
 
 
 def get_acc(logit, labels):
@@ -80,8 +83,6 @@ def masked_softmax(A, mask):
 
 
 if __name__ == '__main__':
-    logit = torch.randn(5, 3)
-    labels = torch.from_numpy(np.array([0, 0, 0, 0, 0])).long()
-    print(logit)
-    print(labels)
-    print(get_acc(logit, labels))
+    lens = torch.from_numpy(np.array([3, 4, 5, 6, 3])).long().cuda()
+    mask = get_mask(10, lens)
+    print(mask)
