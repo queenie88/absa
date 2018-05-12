@@ -9,6 +9,7 @@ import time
 import random
 import numpy as np
 from tensorboardX import SummaryWriter
+from models.basic import get_score
 
 if __name__ == '__main__':
     argv = sys.argv[1:]
@@ -19,8 +20,8 @@ if __name__ == '__main__':
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=300)
     parser.add_argument('--num_class', type=int, default=3)
-    parser.add_argument('--maxlen', type=int, default=25)
-    parser.add_argument('--dataset', type=str, default='restaurant_cat')
+    parser.add_argument('--maxlen', type=int, default=30)
+    parser.add_argument('--dataset', type=str, default='restaurant')
     parser.add_argument('--glove_file', type=str, default='./data/glove.840B.300d.txt')
     parser.add_argument('--optimizer', type=str, default='adagrad')
     parser.add_argument('--lr', type=float, default=0.01)
@@ -49,7 +50,7 @@ if __name__ == '__main__':
     # init model
     Model = model_dic[args.model]
     model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, num_classification=args.num_class,
-                  maxlen=args.maxlen, batch=args.batch, wordemb=wordemb, targetemb=targetemb, device=device)
+                  maxlen=args.maxlen, wordemb=wordemb, targetemb=targetemb, device=device)
     model.to(device)
     # init loss
     cross_entropy = nn.CrossEntropyLoss()
@@ -64,8 +65,8 @@ if __name__ == '__main__':
         random.shuffle(test_data)
         # train
         model.train()
-        losses = []
-        for i in range(num_train // args.batch):
+        total = 0
+        for i in range(num_train // args.batch + 1):
             model.zero_grad()
             batch_data = train_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
@@ -76,17 +77,18 @@ if __name__ == '__main__':
                                          torch.from_numpy(lens).long().to(device)
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
-            losses.append(loss)
+            total += loss * len(batch_data)
             loss.backward()
             optim.step()
-        loss = sum(losses) / len(losses)
+        loss = total / num_train
         writer.add_scalar('loss', loss, epoch)
         # eval
         model.eval()
         # eval on train
-        train_losses = []
-        train_acces = []
-        for i in range(num_train // args.batch):
+        total = 0
+        logit_list = []
+        rating_list = []
+        for i in range(num_train // args.batch + 1):
             batch_data = train_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
             sent, target, rating, lens = np.array(sent), np.array(target), np.array(rating), np.array(lens)
@@ -97,16 +99,22 @@ if __name__ == '__main__':
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)
-            train_losses.append(loss)
-            train_acces.append(acc)
-        train_loss = sum(train_losses) / len(train_losses)
-        train_acc = sum(train_acces) / len(train_acces)
+            total += loss * len(batch_data)
+            logit_list.append(logit)
+            rating_list.append(rating)
+        train_loss = total / num_train
+        train_acc, train_precision, train_recall, train_f1 = get_score(torch.cat(logit_list, dim=0).cpu().data.numpy(),
+                                                                       torch.cat(rating_list, dim=0).cpu().data.numpy())
         writer.add_scalar('train_loss', train_loss, epoch)
         writer.add_scalar('train_acc', train_acc, epoch)
+        writer.add_scalar('train_precision', train_precision, epoch)
+        writer.add_scalar('train_recall', train_recall, epoch)
+        writer.add_scalar('train_f1', train_f1, epoch)
         # eval on test
-        test_losses = []
-        test_acces = []
-        for i in range(num_test // args.batch):
+        total = 0
+        logit_list = []
+        rating_list = []
+        for i in range(num_test // args.batch + 1):
             batch_data = test_data[i * args.batch: (i + 1) * args.batch]
             sent, target, rating, lens = list(zip(*batch_data))
             sent, target, rating, lens = np.array(sent), np.array(target), np.array(rating), np.array(lens)
@@ -117,14 +125,22 @@ if __name__ == '__main__':
             logit = model(sent, target, lens)
             loss = cross_entropy(logit, rating)
             acc = get_acc(logit, rating)
-            test_losses.append(loss)
-            test_acces.append(acc)
-        test_loss = sum(test_losses) / len(test_losses)
-        test_acc = sum(test_acces) / len(test_acces)
+            total += loss * len(batch_data)
+            logit_list.append(logit)
+            rating_list.append(rating)
+        test_loss = total / num_test
+        test_acc, test_precision, test_recall, test_f1 = get_score(torch.cat(logit_list, dim=0).cpu().data.numpy(),
+                                                                   torch.cat(rating_list, dim=0).cpu().data.numpy())
         writer.add_scalar('test_loss', test_loss, epoch)
         writer.add_scalar('test_acc', test_acc, epoch)
-        print('epoch %2d :loss=%.4f, train_loss=%.4f, train_acc=%.4f, test_loss=%.4f, test_acc=%.4f' %
-              (epoch, loss, train_loss, train_acc, test_loss, test_acc))
+        writer.add_scalar('test_precision', test_precision, epoch)
+        writer.add_scalar('test_recall', test_recall, epoch)
+        writer.add_scalar('test_f1', test_f1, epoch)
+        print('epoch %2d :loss=%.4f, '
+              'train_loss=%.4f, train_acc=%.4f, train_precision=%.4f, train_recall=%.4f,train_f1=%.4f,'
+              ' test_loss=%.4f, test_acc=%.4f, test_precision=%.4f, test_recall=%.4f, test_f1=%.4f' %
+              (epoch, loss, train_loss, train_acc, train_precision, train_recall, train_f1,
+               test_loss, test_acc, test_precision, test_recall, test_f1))
         # show parameters
         for name, param in model.named_parameters():
             writer.add_histogram(name, param, epoch, bins='doane')

@@ -4,20 +4,21 @@ from models.basic import LstmCell, FullConnect, get_mask
 
 
 class ABSA_Lstm(nn.Module):
-    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, batch, wordemb, targetemb, device):
+    def __init__(self, dim_word, dim_hidden, num_classification, maxlen, wordemb, targetemb, device):
         super(ABSA_Lstm, self).__init__()
         self.dim_word = dim_word
         self.dim_hidden = dim_hidden
         self.num_classification = num_classification
-        self.batch = batch
         self.maxlen = maxlen
         self.init_param()
         self.emb_matrix = self.init_emb(wordemb)
         self.device = device
 
     def forward(self, sent, target, lens):
+        batch = sent.shape[0]
         x = self.emb_matrix(sent).view(sent.shape[0], sent.shape[1], -1)
-        h, c = self.h, self.c
+        h, c = torch.zeros([batch, self.dim_hidden]).to(self.device), \
+               torch.zeros([batch, self.dim_hidden]).to(self.device)
         mask = get_mask(self.maxlen, lens.cpu())
         mask = mask.to(self.device)
         for t in range(self.maxlen):
@@ -31,8 +32,6 @@ class ABSA_Lstm(nn.Module):
     def init_param(self):
         self.lstmcell = LstmCell(input_size=self.dim_word, hidden_size=self.dim_hidden)
         self.linear = FullConnect(self.dim_hidden, self.num_classification)
-        self.h, self.c = nn.Parameter(torch.zeros([self.batch, self.dim_hidden])), \
-                         nn.Parameter(torch.zeros([self.batch, self.dim_hidden]))
 
     def init_emb(self, embedding):
         num_word, dim_word = embedding.shape

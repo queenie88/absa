@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from math import sqrt
 import numpy as np
+from sklearn.metrics.classification import accuracy_score, precision_score, recall_score, f1_score
 
 
 class FullConnect(nn.Module):
@@ -80,6 +81,15 @@ def masked_softmax(A, mask):
     A_exp = A_exp * mask  # this step masks
     A_softmax = A_exp / (torch.sum(A_exp, dim=1, keepdim=True) + 1e-10)
     return A_softmax
+
+
+def get_score(a, b_max):
+    a_max = np.argmax(a, axis=-1)
+    acc = accuracy_score(a_max, b_max)
+    p = precision_score(a_max, b_max, average='macro')
+    r = recall_score(a_max, b_max, average='macro')
+    f1 = f1_score(a_max, b_max, average='macro')
+    return acc, p, r, f1
 
 
 if __name__ == '__main__':
