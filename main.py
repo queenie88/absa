@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from datasets import read_data, load_embedding, load_worddict, load_wordvec
-from models import ABSA_Lstm, ABSA_Atae_Lstm, Model
+from models import ABSA_Lstm, ABSA_Atae_Lstm, Model, ACSA_GCAE
 from models.basic import get_acc
 import argparse
 import sys
@@ -15,23 +15,27 @@ if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--model', type=str, default='atae_lstm')
+    parser.add_argument('--model', type=str, default='acsa_gcae')
     parser.add_argument('--seed', type=int, default=int(1000 * time.time()))
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=300)
     parser.add_argument('--num_class', type=int, default=3)
     parser.add_argument('--maxlen', type=int, default=30)
-    parser.add_argument('--dataset', type=str, default='restaurant')
+    parser.add_argument('--dataset', type=str, default='laptop')
     parser.add_argument('--glove_file', type=str, default='./data/glove.840B.300d.txt')
     parser.add_argument('--optimizer', type=str, default='adagrad')
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--max_epoch', type=int, default=10)
     parser.add_argument('--batch', type=int, default=25)
+    # acsa model param
+    parser.add_argument('--num_kernel', type=int, default=100)
+    parser.add_argument('--dropout_rate', type=float, default=0.2)
+    parser.add_argument('--kernel_sizes', type=list, default=[3, 4, 5])
     args, _ = parser.parse_known_args(argv)
     dataset_dic = {'restaurant_cat': ['./data/restaurant/train_cat.txt', './data/restaurant/test_cat.txt'],
                    'restaurant': ['./data/restaurant/train.txt', './data/restaurant/test.txt'],
                    'laptop': ['./data/laptop/train.txt', './data/laptop/test.txt']}
-    model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm, 'model': Model}
+    model_dic = {'lstm': ABSA_Lstm, 'atae_lstm': ABSA_Atae_Lstm, 'model': Model, 'acsa_gcae': ACSA_GCAE}
 
     device = torch.device(args.device)
     # random seed
@@ -49,8 +53,13 @@ if __name__ == '__main__':
     test_data = list(zip(*test_data))
     # init model
     Model = model_dic[args.model]
-    model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, num_classification=args.num_class,
-                  maxlen=args.maxlen, wordemb=wordemb, targetemb=targetemb, device=device)
+    if args.model == 'acsa_gcae':
+        model = Model(dim_word=args.dim_word, num_kernel=args.num_kernel, num_classification=args.num_class,
+                      maxlen=args.maxlen, dropout_rate=args.dropout_rate, kernel_sizes=args.kernel_sizes,
+                      wordemb=wordemb, targetemb=targetemb, device=device)
+    else:
+        model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, num_classification=args.num_class,
+                      maxlen=args.maxlen, wordemb=wordemb, targetemb=targetemb, device=device)
     model.to(device)
     # init loss
     cross_entropy = nn.CrossEntropyLoss()
