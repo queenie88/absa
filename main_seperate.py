@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from datasets.seperate_dataloader import read_data, load_embedding, load_worddict, load_wordvec
 from models.bilstm_att_g import ABSA_Bilstm_Att_G
+from models.acsa_gcae_g import ACSA_GCAE_G
 from models.basic import get_acc, get_score
 import argparse
 import sys
@@ -15,23 +16,27 @@ if __name__ == '__main__':
     argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu')
-    parser.add_argument('--model', type=str, default='bilstm_att_g')
+    parser.add_argument('--model', type=str, default='acsa_gcae_g')
     parser.add_argument('--seed', type=int, default=int(1000 * time.time()))
     parser.add_argument('--dim_word', type=int, default=300)
     parser.add_argument('--dim_hidden', type=int, default=150)
     parser.add_argument('--dim_att_hidden', type=int, default=100)
     parser.add_argument('--num_class', type=int, default=3)
     parser.add_argument('--maxlen', type=int, default=30)
-    parser.add_argument('--dataset', type=str, default='laptop')
+    parser.add_argument('--dataset', type=str, default='restaurant')
     parser.add_argument('--glove_file', type=str, default='./data/glove.840B.300d.txt')
     parser.add_argument('--optimizer', type=str, default='adagrad')
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--max_epoch', type=int, default=10)
     parser.add_argument('--batch', type=int, default=25)
+    # acsa gcae param
+    parser.add_argument('--dropout_rate', type=float, default=0.2)
+    parser.add_argument('--num_kernel', type=int, default=100)
+    parser.add_argument('--kernel_sizes', type=int, default=[3, 4, 5])
     args, _ = parser.parse_known_args(argv)
     dataset_dic = {'restaurant': ['./data/restaurant/train_sep.txt', './data/restaurant/test_sep.txt'],
                    'laptop': ['./data/laptop/train_sep.txt', './data/laptop/test_sep.txt']}
-    model_dic = {'bilstm_att_g': ABSA_Bilstm_Att_G}
+    model_dic = {'bilstm_att_g': ABSA_Bilstm_Att_G, 'acsa_gcae_g': ACSA_GCAE_G}
 
     device = torch.device(args.device)
     # random seed
@@ -49,8 +54,13 @@ if __name__ == '__main__':
     test_data = list(zip(*test_data))
     # init model
     Model = model_dic[args.model]
-    model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, dim_att_hidden=args.dim_att_hidden,
-                  num_classification=args.num_class, wordemb=wordemb, targetemb=targetemb, device=device)
+    if args.model == 'acsa_gcae_g':
+        model = Model(dim_word=args.dim_word, num_kernel=args.num_kernel, num_classification=args.num_class,
+                      kernel_sizes=args.kernel_sizes, maxlen=args.maxlen, dropout_rate=args.dropout_rate,
+                      wordemb=wordemb, targetemb=targetemb, device=device)
+    else:
+        model = Model(dim_word=args.dim_word, dim_hidden=args.dim_hidden, dim_att_hidden=args.dim_att_hidden,
+                      num_classification=args.num_class, wordemb=wordemb, targetemb=targetemb, device=device)
     model.to(device)
     # init loss
     cross_entropy = nn.CrossEntropyLoss()
